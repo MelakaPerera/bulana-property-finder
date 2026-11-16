@@ -8,6 +8,10 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 echo "=== $(date '+%Y-%m-%d %H:%M') LankaPropertyWeb upload ==="
 
+git pull -q --ff-only || echo "Could not update the code; using the current copy."
+[ -d .venv ] || python3 -m venv .venv
+.venv/bin/pip install -q -r requirements.txt
+
 SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

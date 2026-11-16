@@ -275,7 +275,8 @@ def main() -> int:
     removed = expire(listings, now.date(), config["expire_after_days"], sources_ok)
     grouped = mark_duplicates(listings)
 
-    new_today = sum(1 for v in listings.values() if v["first"] == today)
+    baseline = old_meta.get("baseline") or today
+    new_today = sum(1 for v in listings.values() if v["first"] == today and today > baseline)
     changed_today = sum(1 for v in listings.values() if v.get("changed") == today)
     rows = sorted(listings.values(), key=lambda v: (v["first"], v["id"]), reverse=True)
     meta = {
@@ -283,10 +284,10 @@ def main() -> int:
         "today": today,
         # Day the database was first built: everything is "first seen" that
         # day, so the website does not flag those as new.
-        "baseline": old_meta.get("baseline") or today,
+        "baseline": baseline,
         "districts": sorted({v["district"] for v in rows if v["district"]}),
         "total": len(rows),
-        "new_today": new_today if previous else 0,
+        "new_today": new_today,
         "price_changes_today": changed_today,
         "sources_ok": sorted(sources_ok),
     }
