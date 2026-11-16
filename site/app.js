@@ -64,20 +64,22 @@
     return o;
   }
 
+  async function getJson(path) {
+    const res = await fetch(path, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`${path}: ${res.status}`);
+    return res.json();
+  }
+
+  /* The data comes as a small meta.json plus newest-first parts. The first
+     part is shown straight away; the rest load in the background. */
   async function load() {
+    let info;
     try {
-      const res = await fetch('data/listings.json', { cache: 'no-cache' });
-      if (!res.ok) throw new Error(res.status);
-      const raw = await res.json();
-      meta = raw.meta;
-      const cols = raw.columns;
-      all = raw.rows.map((r) => {
-        const o = {};
-        for (let i = 0; i < cols.length; i++) o[cols[i]] = r[i];
-        return expand(o);
-      });
+      info = await getJson('data/meta.json');
+      meta = info.meta;
+      addRows(info.columns, await getJson('data/part-0.json'));
     } catch (e) {
-      $('status').innerHTML = '<strong>No listings yet.</strong><br>The daily update has not produced a data file. Run the scraper once, then reload this page.';
+      $('status').innerHTML = '<strong>No listings yet.</strong><br>The daily update has not produced any data. Run the scraper once, then reload this page.';
       return;
     }
     fillDistricts();
@@ -88,7 +90,48 @@
     const when = new Date(meta.updated);
     $('updated').textContent = `Last updated ${when.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` +
       ` · ${num(meta.total)} listings · ${num(meta.new_today)} new today · ${num(meta.price_changes_today)} price changes today`;
+    loading = info.parts > 1;
     apply();
+
+    for (let n = 1; n < info.parts; n++) {
+      try {
+        addRows(info.columns, await getJson(`data/part-${n}.json`));
+      } catch (e) {
+        loadFailed = true;
+        break;
+      }
+      loading = n < info.parts - 1;
+      fillCities();
+      // Refresh the list unless the agent has scrolled into it or opened something.
+      if (window.scrollY < 300 && rendered <= PAGE) apply(); else { stale = true; showProgress(); }
+    }
+    loading = false;
+    showProgress();
+  }
+
+  let loading = false, loadFailed = false, stale = false;
+
+  function addRows(cols, rows) {
+    for (const r of rows) {
+      const o = {};
+      for (let i = 0; i < cols.length; i++) o[cols[i]] = r[i];
+      all.push(expand(o));
+    }
+  }
+
+  function showProgress() {
+    const el = $('progress');
+    if (loadFailed) {
+      el.innerHTML = `Only ${num(all.length)} of ${num(meta.total)} listings could be loaded. Check your connection and reload the page.`;
+    } else if (loading) {
+      el.textContent = `Showing the newest listings first. Loading the rest: ${num(all.length)} of ${num(meta.total)}…`;
+    } else if (stale) {
+      el.innerHTML = 'All listings are loaded. <button type="button" class="link" id="refresh">Update these results</button>';
+      $('refresh').addEventListener('click', () => { window.scrollTo(0, 0); apply(); });
+    } else {
+      el.textContent = '';
+    }
+    el.hidden = !el.innerHTML;
   }
 
   function fillDistricts() {
@@ -183,6 +226,8 @@
       '<div class="empty"><strong>No properties match.</strong>Try fewer words, a wider price range, or clear the filters.</div>';
     rendered = 0;
     renderMore();
+    stale = false;
+    showProgress();
     writeUrl(s);
   }
 

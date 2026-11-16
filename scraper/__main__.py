@@ -20,7 +20,8 @@ from . import ikman, lpw
 from .common import Fetcher, norm
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_FILE = ROOT / "site" / "data" / "listings.json"
+DATA_FILE = ROOT / "site" / "data" / "listings.json"   # full database (kept between runs)
+PART_SIZE = 4000   # listings per file the website downloads
 
 # Column order of the compact rows in listings.json (the website reads this).
 COLUMNS = [
@@ -173,6 +174,25 @@ def mark_duplicates(listings: dict[str, dict]) -> int:
     return grouped
 
 
+def write_site_parts(meta: dict, rows: list[dict]) -> int:
+    """Write the files the website loads: a small meta.json, then the
+    listings in newest-first chunks so the first results appear at once
+    instead of after one large download."""
+    out = DATA_FILE.parent
+    for old in out.glob("part-*.json"):
+        old.unlink()
+    cols = [c for c in COLUMNS if c != "last"]
+    chunks = [rows[i:i + PART_SIZE] for i in range(0, len(rows), PART_SIZE)] or [[]]
+    for n, chunk in enumerate(chunks):
+        body = [[p.get(c) for c in cols] for p in map(pack, chunk)]
+        (out / f"part-{n}.json").write_text(
+            json.dumps(body, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (out / "meta.json").write_text(
+        json.dumps({"meta": meta, "columns": cols, "parts": len(chunks)}, ensure_ascii=False),
+        encoding="utf-8")
+    return len(chunks)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Scrape ikman.lk and LankaPropertyWeb")
     ap.add_argument("--max-pages", type=int, help="limit pages per area/section (for quick tests)")
@@ -207,6 +227,8 @@ def main() -> int:
             items = []
         counts[name] = len(items)
         log(f"  {name}: {len(items)} listings ({fetcher.requests_made} requests, {fetcher.failures} failed)")
+        if fetcher.last_error:
+            log(f"  {name}: last error was {fetcher.last_error}")
         had_before = sum(1 for v in previous.values() if v["src"] == name)
         if items and len(items) >= 0.3 * had_before:
             sources_ok.add(name)
@@ -242,11 +264,12 @@ def main() -> int:
     tmp = DATA_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     tmp.replace(DATA_FILE)
+    parts = write_site_parts(meta, rows)
 
     log(f"Done in {time.time() - started:.0f}s: {len(rows)} listings "
         f"({new_today} new, {changed_today} price changes, {removed} expired, "
         f"{grouped} in duplicate groups). Wrote {DATA_FILE.relative_to(ROOT)} "
-        f"({DATA_FILE.stat().st_size / 1e6:.1f} MB)")
+        f"({DATA_FILE.stat().st_size / 1e6:.1f} MB) and {parts} website parts")
     return 0 if sources_ok or args.only else 1
 
 

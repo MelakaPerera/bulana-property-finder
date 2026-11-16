@@ -23,6 +23,7 @@ class Fetcher:
         self.timeout = timeout
         self.requests_made = 0
         self.failures = 0
+        self.last_error = ""
         self._lock = threading.Lock()
         self._next_at = 0.0
         self._local = threading.local()
@@ -54,9 +55,10 @@ class Fetcher:
                     return r.content.decode("utf-8", "replace")
                 if r.status_code in (404, 410):
                     return None
-                # 429 / 5xx: back off and retry
-            except requests.RequestException:
-                pass
+                # 403 / 429 / 5xx: back off and retry
+                self.last_error = f"HTTP {r.status_code} for {url} (server: {r.headers.get('server', '?')})"
+            except requests.RequestException as exc:
+                self.last_error = f"{type(exc).__name__} for {url}"
             time.sleep(3 * (attempt + 1) ** 2)
         self.failures += 1
         return None
