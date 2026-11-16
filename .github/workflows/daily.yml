@@ -42,6 +42,16 @@ jobs:
             echo "No previous data - first run"
           fi
 
+      # LankaPropertyWeb refuses requests from GitHub's servers, so its
+      # listings are scraped on a Mac and uploaded to the "lpw-upload" branch.
+      - name: Fetch LankaPropertyWeb listings uploaded from the Mac
+        run: |
+          if git fetch --depth=1 origin lpw-upload 2>/dev/null; then
+            git show FETCH_HEAD:lpw.json > lpw-upload.json
+          else
+            echo "No upload yet"
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -50,7 +60,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Scrape ikman.lk and LankaPropertyWeb
-        run: python -m scraper ${{ inputs.only && format('--only {0}', inputs.only) || '' }}
+        run: python -m scraper --lpw-import lpw-upload.json ${{ inputs.only && format('--only {0}', inputs.only) || '' }}
 
       - name: Save today's data
         run: |

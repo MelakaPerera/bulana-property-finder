@@ -83,14 +83,18 @@ def load_previous() -> tuple[dict[str, dict], dict]:
 def merge(previous: dict[str, dict], scraped: list[dict], today: str) -> dict[str, dict]:
     merged = dict(previous)
     for item in scraped:
+        # Listings uploaded from another machine carry the day they were seen.
+        seen = item.pop("_seen", today)
         old = previous.get(item["id"])
         if old is None:
-            item.update(first=today, last=today, prev=None, changed=None)
+            item.update(first=seen, last=seen, prev=None, changed=None)
         else:
-            item.update(first=old["first"], last=today, prev=old.get("prev"), changed=old.get("changed"))
+            if seen < old["last"]:
+                continue  # we already hold newer information
+            item.update(first=old["first"], last=seen, prev=old.get("prev"), changed=old.get("changed"))
             if item["price"] and old.get("price") and item["price"] != old["price"] \
                     and item["unit"] == old.get("unit"):
-                item.update(prev=old["price"], changed=today)
+                item.update(prev=old["price"], changed=seen)
             # A page that briefly drops a detail should not erase what we knew.
             for key in ("beds", "baths", "perches", "sqft", "img", "price", "total"):
                 if item.get(key) in (None, "") and old.get(key) not in (None, ""):
@@ -197,6 +201,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Scrape ikman.lk and LankaPropertyWeb")
     ap.add_argument("--max-pages", type=int, help="limit pages per area/section (for quick tests)")
     ap.add_argument("--only", choices=["ikman", "lpw"], help="scrape one source only")
+    ap.add_argument("--lpw-export", metavar="FILE",
+                    help="scrape LankaPropertyWeb only and save the raw listings to FILE (no merge)")
+    ap.add_argument("--lpw-import", metavar="FILE",
+                    help="use LankaPropertyWeb listings from FILE (made by --lpw-export) instead of scraping it")
     args = ap.parse_args()
 
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
@@ -215,9 +223,32 @@ def main() -> int:
     lpw_fetch = Fetcher(config["seconds_between_requests"])
     locations = ikman.load_locations(ik_fetch)
 
+    if args.lpw_export:
+        items = lpw.scrape(config, locations, lpw_fetch, log)
+        log(f"  lpw: {len(items)} listings ({lpw_fetch.requests_made} requests, {lpw_fetch.failures} failed)")
+        if not items:
+            log(f"  lpw: nothing collected. {lpw_fetch.last_error}")
+            return 1
+        Path(args.lpw_export).write_text(
+            json.dumps({"date": today, "items": items}, ensure_ascii=False), encoding="utf-8")
+        log(f"Saved {args.lpw_export}")
+        return 0
+
     scraped, sources_ok, counts = [], set(), {}
     for name, module, fetcher in (("ikman", ikman, ik_fetch), ("lpw", lpw, lpw_fetch)):
         if args.only and args.only != name:
+            continue
+        if name == "lpw" and args.lpw_import and Path(args.lpw_import).exists():
+            upload = json.loads(Path(args.lpw_import).read_text(encoding="utf-8"))
+            age = (now.date() - date.fromisoformat(upload["date"])).days
+            log(f"Using {len(upload['items'])} LankaPropertyWeb listings uploaded on {upload['date']}")
+            for item in upload["items"]:
+                item["_seen"] = upload["date"]
+            if upload["items"] and age <= 2:
+                sources_ok.add("lpw")   # fresh enough to retire ads that have gone
+            else:
+                log(f"  ! that upload is {age} days old - keeping existing LankaPropertyWeb listings")
+            scraped.extend(upload["items"])
             continue
         log(f"Scraping {name} ...")
         try:
