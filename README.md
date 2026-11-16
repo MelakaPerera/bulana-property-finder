@@ -38,6 +38,26 @@ After that it updates itself every day at about 5 am Sri Lanka time. If a run
 fails, GitHub emails the account owner and the website keeps showing the
 previous day's data.
 
+## LankaPropertyWeb is collected from a Mac
+
+LankaPropertyWeb refuses requests from GitHub's servers (HTTP 403), so GitHub
+only scrapes ikman.lk. A Mac does the LankaPropertyWeb part:
+
+- `scripts/mac-lpw-upload.sh` scrapes LankaPropertyWeb (about 12 minutes),
+  uploads the listings to the `lpw-upload` branch and asks GitHub to rebuild
+  the site.
+- A macOS schedule (`~/Library/LaunchAgents/com.bulana.lpw-upload.plist`) runs
+  it every day at 7 am, or when the Mac next wakes if it was asleep.
+- macOS does not let scheduled jobs read the Documents folder, so the schedule
+  runs a separate copy of this project in
+  `~/Library/Application Support/Bulana`. It updates itself from GitHub
+  before each run.
+- Its log is `~/Library/Logs/bulana-lpw-upload.log`.
+
+If the Mac is off for a day, the site keeps the previous LankaPropertyWeb
+listings. To stop the schedule:
+`launchctl bootout gui/$(id -u)/com.bulana.lpw-upload`
+
 ## Run it on your own computer
 
 ```bash
