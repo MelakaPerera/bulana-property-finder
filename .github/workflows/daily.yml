@@ -1,0 +1,66 @@
+name: Daily property update
+
+on:
+  schedule:
+    - cron: "30 23 * * *"   # 05:00 Sri Lanka time, every day
+  workflow_dispatch:         # lets you press "Run workflow" by hand
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Yesterday's data lives on a separate "data" branch so new listings
+      # and price changes can be detected without bloating the main branch.
+      - name: Restore yesterday's data
+        run: |
+          mkdir -p site/data
+          if git fetch --depth=1 origin data 2>/dev/null; then
+            git show FETCH_HEAD:listings.json > site/data/listings.json
+            echo "Restored previous data"
+          else
+            echo "No previous data - first run"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Scrape ikman.lk and LankaPropertyWeb
+        run: python -m scraper
+
+      - name: Save today's data
+        run: |
+          tmp=$(mktemp -d)
+          cp site/data/listings.json "$tmp/"
+          cd "$tmp"
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add listings.json
+          git commit -q -m "Data for $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

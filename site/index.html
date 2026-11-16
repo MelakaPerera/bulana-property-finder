@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bulana Property Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <span class="brand-name">Bulana</span>
+      <span class="brand-sub">Property Finder</span>
+    </div>
+    <form class="search" id="search-form" role="search">
+      <label class="sr-only" for="q">Search listings</label>
+      <input id="q" type="search" autocomplete="off" placeholder="Search a town, road or keyword, e.g. Nugegoda 3 bedroom">
+      <button type="button" id="filters-toggle" class="btn ghost" aria-expanded="false" aria-controls="filters">Filters</button>
+    </form>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="filters" id="filters" aria-label="Filters">
+    <div class="field">
+      <span class="label">Looking to</span>
+      <div class="seg" role="group" aria-label="Buy or rent">
+        <button type="button" data-deal="" class="on">Any</button>
+        <button type="button" data-deal="sale">Buy</button>
+        <button type="button" data-deal="rent">Rent</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">Property type</span>
+      <div class="checks">
+        <label><input type="checkbox" id="type-house" data-type="house"> House</label>
+        <label><input type="checkbox" id="type-land" data-type="land"> Land</label>
+        <label><input type="checkbox" id="type-apartment" data-type="apartment"> Apartment</label>
+        <label><input type="checkbox" id="type-room" data-type="room"> Room / annex</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="district">District</label>
+      <select id="district"><option value="">All districts</option></select>
+    </div>
+
+    <div class="field">
+      <label class="label" for="city">Town</label>
+      <select id="city"><option value="">All towns</option></select>
+    </div>
+
+    <div class="field">
+      <span class="label">Price (Rs) <span class="hint" id="price-hint">total, or per month for rentals</span></span>
+      <div class="pair">
+        <input id="price-min" inputmode="decimal" placeholder="Min, e.g. 10m" aria-label="Minimum price">
+        <input id="price-max" inputmode="decimal" placeholder="Max, e.g. 45m" aria-label="Maximum price">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="beds">Bedrooms</label>
+      <select id="beds">
+        <option value="">Any</option>
+        <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+        <option value="4">4+</option><option value="5">5+</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <span class="label">Land size (perches)</span>
+      <div class="pair">
+        <input id="perch-min" inputmode="decimal" placeholder="Min" aria-label="Minimum land size in perches">
+        <input id="perch-max" inputmode="decimal" placeholder="Max" aria-label="Maximum land size in perches">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="fresh">First seen</label>
+      <select id="fresh">
+        <option value="">Any time</option>
+        <option value="0">New today</option>
+        <option value="2">Last 3 days</option>
+        <option value="6">Last 7 days</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="label" for="source">Website</label>
+      <select id="source">
+        <option value="">Both</option>
+        <option value="ikman">ikman.lk</option>
+        <option value="lpw">LankaPropertyWeb</option>
+      </select>
+    </div>
+
+    <div class="field checks">
+      <label><input type="checkbox" id="changed"> Price changed recently</label>
+      <label><input type="checkbox" id="group" checked> Group duplicate ads</label>
+    </div>
+
+    <button type="button" class="btn ghost wide" id="reset">Clear all filters</button>
+  </aside>
+
+  <section class="results" aria-live="polite">
+    <div class="status" id="status">Loading listings…</div>
+
+    <div class="toolbar" id="toolbar" hidden>
+      <div class="count" id="count"></div>
+      <div class="toolbar-right">
+        <label class="sr-only" for="sort">Sort by</label>
+        <select id="sort">
+          <option value="new">Newest first</option>
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+          <option value="size-desc">Land size: largest</option>
+          <option value="drop">Biggest price drop</option>
+        </select>
+        <button type="button" class="btn" id="export">Export to Excel</button>
+      </div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+    <div class="more-wrap"><button type="button" class="btn ghost" id="more" hidden>Show more</button></div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span id="updated"></span>
+  <span>Listings are collected from ikman.lk and lankapropertyweb.com once a day. Always confirm details on the original ad.</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>
